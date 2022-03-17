@@ -12,6 +12,9 @@
   "dependencies": {
     "express": "^4.17.3"
   },
+  "devDependencies": {
+    "tape": "^4.7.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Jim-0/node-js-web-server"
