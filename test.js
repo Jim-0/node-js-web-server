@@ -1,8 +1,9 @@
 const { spawn } = require('child_process');
-const httpModule = require('http');
-const urlModule = require('url');
+// const httpModule = require('http');
+const got = require('got');
 const test = require('tape');
 const endpointURL = 'http://127.0.0.1:3000';
+
 // Make sure the port is available when test fail with `not ok 1 plan != count`
 console.log('endpointURL:', endpointURL);
 
@@ -17,24 +18,18 @@ test('responds to requests', (t) => {
   child.stdout.on('data', _ => {
     // Make a request to our app
     (async () => {
-      httpModule.get(endpointURL, (res) => {
-        const { statusCode } = res;
-        res.setEncoding('utf8');
-        let rawData = '';
-        res.on('data', (chunk) => { rawData += chunk; });
-        res.on('end', () => {
-          // stop the server
-          child.kill();
-          console.log('rawData:', rawData);
-          // No error
-          t.false(res.error);
-          // Successful response
-          t.equal(statusCode, 200);
-          // Assert content checks
-          t.notEqual(rawData.indexOf("Hello"), -1);
-          t.notEqual(rawData.indexOf("World"), -1);
-        });
-      });
+      const response = await got(endpointURL);
+      // stop the server
+      child.kill();
+      // No error
+      t.false(response.error);
+      // t.false(response1.error);
+      // Successful response
+      t.equal(response.statusCode, 200);
+      // t.equal(response1.statusCode, 200);
+      // Assert content checks
+      t.notEqual(response.body.indexOf("Hello"), -1);
+      t.notEqual(response.body.indexOf("World"), -1);
     })();
   });
 });
