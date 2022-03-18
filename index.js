@@ -9,6 +9,7 @@ const fsModule = require('fs')
 const PORT = process.env.PORT || 3000
 const HTTPS_PROXY = process.env.HTTPS_PROXY
 const GET_SECRET = process.env.GET_SECRET || 'url'
+const getPrefixPath = `/get?q=${ GET_SECRET }:`
 
 function getResource(onURL, callBack) {
   let options = {}
@@ -22,9 +23,8 @@ function getResource(onURL, callBack) {
 
 // ???: Is it possible to result in a dead cycle?
 app.get('/get', (req, res) => {
-  const prefix = `/get?q=${ GET_SECRET }:`
-  if (!req.url.startsWith(prefix)) { return }
-  let trustedURL = req.url.substring(prefix.length)
+  if (!req.url.startsWith(getPrefixPath)) { return }
+  let trustedURL = req.url.substring(getPrefixPath.length)
   getResource(trustedURL, (response) => { response.pipe(res) })
 });
 
