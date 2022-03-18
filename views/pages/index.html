@@ -1,9 +1,22 @@
-<html contenteditable="">
+<!DOCTYPE html>
+<html>
 
-<head></head>
+<head>
+    <meta charset="utf-8">
+    <title>Text</title>
+    <script src="https://cdn.static.runoob.com/libs/jquery/1.8.3/jquery.js"></script>
+</head>
 
 <body>
-    <p>document.body.contentEditable = true;</p>
+    <div id="divCustomers"></div>
+    <script>
+        $.getJSON("https://api.github.com/repos/apache/echarts", function (data) {
+            var html = '<div>';
+            html += JSON.stringify(data);
+            html += '</div>';
+            $('#divCustomers').html(html);
+        });
+    </script>
 </body>
 
 </html>
