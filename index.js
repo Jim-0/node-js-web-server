@@ -12,6 +12,7 @@ const GET_SECRET = process.env.GET_SECRET || 'url'
 const getPrefixPath = `/get?q=${ GET_SECRET }:`
 
 function getResource(onURL, callBack) {
+  // TODO: get resouce by `HTTP`
   let options = {}
   if (null != HTTPS_PROXY) {
     console.log('HTTPS_PROXY:', HTTPS_PROXY)
@@ -23,6 +24,7 @@ function getResource(onURL, callBack) {
 
 // ???: Is it possible to result in a dead cycle?
 app.get('/get', (req, res) => {
+  // TODO: deliver request header
   if (!req.url.startsWith(getPrefixPath)) { return }
   let trustedURL = req.url.substring(getPrefixPath.length)
   getResource(trustedURL, (response) => { response.pipe(res) })
@@ -40,5 +42,6 @@ pagesMap.forEach(function(value, offset){
 });
 
 app.get('/', (req, res) => res.send(rootPage));
+// app.get('/', (req, res) => res.redirect('./text'));
 
 app.listen(PORT, () => console.log(`Listening on ${ PORT }`));
