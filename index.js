@@ -5,11 +5,11 @@ const app = expressModule()
 const httpsModule = require('https');
 const httpsProxyAgentModule = require('https-proxy-agent');
 
-const fsModule = require('fs')
+const fsModule = require('fs');
 const PORT = process.env.PORT || 3000
 const HTTPS_PROXY = process.env.HTTPS_PROXY
 const GET_SECRET = process.env.GET_SECRET || 'url'
-const getPrefixPath = `/get?q=${ GET_SECRET }:`
+const getPrefixPath = `/get?q=${GET_SECRET}:`
 
 function getResource(onURL, callBack) {
   // TODO: get resouce by `HTTP`
@@ -36,12 +36,65 @@ let pagesMap = [
 
 let rootPage = 'Hello World!'
 
-pagesMap.forEach(function(value, offset){
-  app.get(value.remotePath, (req, res) => res.send(fsModule.readFileSync(value.localPath, {encoding: 'utf8'})))
-  rootPage += `<div><a href="${ value.remotePath }">${ value.remotePath }</a></div>`
+pagesMap.forEach(function (value, offset) {
+  app.get(value.remotePath, (req, res) => res.send(fsModule.readFileSync(value.localPath, { encoding: 'utf8' })))
+  rootPage += `<div><a href="${value.remotePath}">${value.remotePath}</a></div>`
 });
 
 app.get('/', (req, res) => res.send(rootPage));
 // app.get('/', (req, res) => res.redirect('./text'));
 
-app.listen(PORT, () => console.log(`Listening on ${ PORT }`));
+const eventsQueue = {
+  sent: [],
+  unsent: [],
+  get pop() {
+    if (this.unsent.length == 0) { return null }
+    const msgString = this.unsent.shift();
+    this.sent.push(msgString);
+    return msgString;
+  },
+  get wirtableDest() {
+    const currentQueue = this;
+    /// !!!: class `Writable` is not defined in some IDE
+    return {
+      on() { },
+      once() { },
+      emit() { },
+      write(data) {
+        let string = Buffer.from(data).toString();
+        currentQueue.unsent.push(string);
+        console.log('write', string);
+      },
+      end() { },
+    }
+  }
+}
+
+app.get('/[0-9A-Za-z]{16}', (req, res) => {
+  console.log('get():', req.headers, req.url);
+  switch (req.headers.accept) {
+    case 'text/event-stream':
+      console.log('stream');
+      res.setHeader("Content-Type", "text/event-stream");
+      // res.write('id: 0\ntype: ping\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
+      setInterval(async function () {
+        const unsentMsg = eventsQueue.pop;
+        if (null == unsentMsg) { return }
+        console.log('writing ' + unsentMsg);
+        res.write('data: ' + unsentMsg + '\n\n');
+      }, 30);
+      break;
+    default:
+      console.log('html');
+      res.send(rootPage);
+  }
+});
+
+app.post('/[0-9A-Za-z]{16}', (req, res) => {
+  console.log('post():', req.headers, req.path);
+  req.pipe(eventsQueue.wirtableDest);
+  req.pipe(res);
+});
+
+
+app.listen(PORT, () => console.log(`Listening on ${PORT}`));
