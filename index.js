@@ -44,7 +44,11 @@ pagesMap.forEach(function (value, offset) {
 app.get('/', (req, res) => res.send(rootPage));
 // app.get('/', (req, res) => res.redirect('./text'));
 
-const eventsQueue = {
+const sessionManager = {
+  _clientChannels: [],
+  addChannel(request, response) {
+    this._clientChannels.push({ req: request, res: response })
+  },
   sent: [],
   unsent: [],
   get pop() {
@@ -55,7 +59,7 @@ const eventsQueue = {
   },
   get wirtableDest() {
     const currentQueue = this;
-    /// !!!: class `Writable` is not defined in some IDE
+    // MARK: simple implementation of `stream.Writable`
     return {
       on() { },
       once() { },
@@ -67,8 +71,33 @@ const eventsQueue = {
       },
       end() { },
     }
-  }
+  },
+  _syncInterval: 30,
+  _intervalID: null,
+  set syncInterval(milliseconds) {
+    this._syncInterval = milliseconds;
+    clearInterval(this._intervalID);
+    let rootObj = this
+    this._intervalID = setInterval(async () => {
+      rootObj.scansAllSessions();
+    }, milliseconds);
+  },
+  scansAllSessions() {
+    const unsentMsg = this.pop;
+    if (null == unsentMsg) { return }
+    this._clientChannels.forEach((clientChannel) => {
+      console.log('clientChannel.res:', clientChannel.res);
+      console.log('writing ' + unsentMsg);
+      clientChannel.res.write('data: ' + unsentMsg + '\n\n');
+      // res.write('id: 0\ntype: ping\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
+    });
+  },
+  run() {
+    this.syncInterval = this._syncInterval;
+  },
 }
+
+sessionManager.run();
 
 app.get('/[0-9A-Za-z]{16}', (req, res) => {
   console.log('get():', req.headers, req.url);
@@ -76,23 +105,18 @@ app.get('/[0-9A-Za-z]{16}', (req, res) => {
     case 'text/event-stream':
       console.log('stream');
       res.setHeader("Content-Type", "text/event-stream");
-      // res.write('id: 0\ntype: ping\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
-      setInterval(async function () {
-        const unsentMsg = eventsQueue.pop;
-        if (null == unsentMsg) { return }
-        console.log('writing ' + unsentMsg);
-        res.write('data: ' + unsentMsg + '\n\n');
-      }, 30);
+      sessionManager.addChannel(req, res)
       break;
     default:
       console.log('html');
+      // res.send(fsModule.readFileSync('./public/webhooks.html', { encoding: 'utf8' }));
       res.send(rootPage);
   }
 });
 
 app.post('/[0-9A-Za-z]{16}', (req, res) => {
   console.log('post():', req.headers, req.path);
-  req.pipe(eventsQueue.wirtableDest);
+  req.pipe(sessionManager.wirtableDest);
   req.pipe(res);
 });
 
