@@ -79,16 +79,20 @@ const sessionManager = {
     clearInterval(this._intervalID);
     let rootObj = this
     this._intervalID = setInterval(async () => {
-      rootObj.scansAllSessions();
+      rootObj.scansAllChannels();
     }, milliseconds);
   },
-  scansAllSessions() {
+  scansAllChannels() {
     const unsentMsg = this.pop;
     if (null == unsentMsg) { return }
-    this._clientChannels.forEach((clientChannel) => {
-      console.log('clientChannel.res:', clientChannel.res);
+    this._clientChannels.forEach((clientChannel, offset) => {
+      const req = clientChannel.req;
+      const res = clientChannel.res;
+      console.assert((res.connection.readable == res.connection.writable), 'Unexpected case!\n');
+      if (!res.connection.readable) { return }
+      console.log('clientChannel.req:', offset, req.url);
       console.log('writing ' + unsentMsg);
-      clientChannel.res.write('data: ' + unsentMsg + '\n\n');
+      res.write('data: ' + unsentMsg + '\n\n');
       // res.write('id: 0\ntype: ping\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
     });
   },
@@ -103,12 +107,12 @@ app.get('/[0-9A-Za-z]{16}', (req, res) => {
   console.log('get():', req.headers, req.url);
   switch (req.headers.accept) {
     case 'text/event-stream':
-      console.log('stream');
+      console.log('event-stream');
       res.setHeader("Content-Type", "text/event-stream");
       sessionManager.addChannel(req, res)
       break;
     default:
-      console.log('html');
+      console.log('req.headers.accept:', req.headers.accept);
       // res.send(fsModule.readFileSync('./public/webhooks.html', { encoding: 'utf8' }));
       res.send(rootPage);
   }
