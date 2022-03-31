@@ -37,7 +37,10 @@ let pagesMap = [
 let rootPage = 'Hello World!'
 
 pagesMap.forEach(function (value, offset) {
-  app.get(value.remotePath, (req, res) => res.send(fsModule.readFileSync(value.localPath, { encoding: 'utf8' })))
+  app.get(value.remotePath, (req, res) => {
+    res.write(fsModule.readFileSync(value.localPath, { encoding: 'utf8' }));
+    res.end();
+  });
   rootPage += `<div><a href="${value.remotePath}">${value.remotePath}</a></div>`
 });
 
@@ -93,7 +96,7 @@ const sessionManager = {
       console.log('clientChannel.req:', offset, req.url);
       console.log('writing ' + unsentMsg);
       res.write('data: ' + unsentMsg + '\n\n');
-      // res.write('id: 0\ntype: ping\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
+      // res.write('event: ping\nid: 0\nretry: 10000\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
     });
   },
   run() {
