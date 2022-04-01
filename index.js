@@ -32,6 +32,8 @@ app.get('/get', (req, res) => {
 
 let pagesMap = [
   { remotePath: '/text', localPath: './views/pages/index.html' },
+  { remotePath: '/public/main.min.js', localPath: './smee.io/public/main.min.js' },
+  { remotePath: '/public/main.min.css', localPath: './smee.io/public/main.min.css' },
 ]
 
 let rootPage = 'Hello World!'
@@ -60,34 +62,40 @@ const sessionManager = {
     this.sent.push(msgString);
     return msgString;
   },
-  packingData: null,
-  get wirtableDest() {
+  loadDataFromRequest(req, shouldBePacked = true) {
     const currentQueue = this;
-    // MARK: simple implementation of `stream.Writable`
-    return {
-      rawData: null,
+    const writableDest = {
+      receivingBuffer: null,
       on() { },
       once() { },
       emit() { },
       write(data) {
-        console.log('wirtableDest.write()', data);
-        if (null == this.rawData) {
-          this.rawData = data;
+        // console.log('writableDest.write()', data);
+        if (null == this.receivingBuffer) {
+          this.receivingBuffer = data;
           return;
         }
-        this.rawData += data;
+        this.receivingBuffer += data;
       },
       end() {
-        let string = Buffer.from(this.rawData).toString().split('\r').join('').split('\n').join('');
-        console.log('wirtableDest.end()', string);
-        if (null != currentQueue.packingData) {
-          currentQueue.packingData.body = JSON.parse(string);
-          string = JSON.stringify(currentQueue.packingData)
-          currentQueue.packingData = null;
+        let string = Buffer.from(this.receivingBuffer).toString().split('\r').join('').split('\n').join('');
+        console.log('writableDest.end()', string);
+        // TODO: implement whitelist or blacklist
+        if (shouldBePacked) {
+          const packingData = req.headers;
+          const addingKeys = ['body', 'query', 'timestamp'];
+          addingKeys.forEach((addingKey) => {
+            console.assert(!packingData.hasOwnProperty(addingKey), 'Unexpected case!\n');
+          });
+          packingData.query = req.query;
+          packingData.timestamp = +(new Date());
+          packingData.body = JSON.parse(string);
+          string = JSON.stringify(packingData);
         }
         currentQueue.unsent.push(string);
       },
-    }
+    };
+    req.pipe(writableDest);
   },
   _syncInterval: 30,
   _intervalID: null,
@@ -131,25 +139,15 @@ app.get('/[0-9A-Za-z]{16}', (req, res) => {
       break;
     default:
       console.log('req.headers.accept:', req.headers.accept);
-      // res.send(fsModule.readFileSync('./public/webhooks.html', { encoding: 'utf8' }));
+      res.send(fsModule.readFileSync('./smee.io/webhooks.html', { encoding: 'utf8' }));
       res.send(rootPage);
   }
 });
 
 app.post('/[0-9A-Za-z]{16}', (req, res) => {
   console.log('post():', req.url);
-  const packingData = req.headers;
-  const addingKeys = ['body', 'query', 'timestamp'];
-  addingKeys.forEach((addingKey) => {
-    console.assert(!packingData.hasOwnProperty(addingKey), 'Unexpected case!\n');
-  });
-  packingData.body = {};
-  packingData.query = req.query;
-  packingData.timestamp = +(new Date());
-  // console.log('packingData:', packingData);
-  sessionManager.packingData = packingData;
-  req.pipe(sessionManager.wirtableDest);
-  req.pipe(res);
+  sessionManager.loadDataFromRequest(req);
+  res.end();
 });
 
 
