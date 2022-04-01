@@ -60,19 +60,33 @@ const sessionManager = {
     this.sent.push(msgString);
     return msgString;
   },
+  packingData: null,
   get wirtableDest() {
     const currentQueue = this;
     // MARK: simple implementation of `stream.Writable`
     return {
+      rawData: null,
       on() { },
       once() { },
       emit() { },
       write(data) {
-        let string = Buffer.from(data).toString();
-        currentQueue.unsent.push(string);
-        console.log('write', string);
+        console.log('wirtableDest.write()', data);
+        if (null == this.rawData) {
+          this.rawData = data;
+          return;
+        }
+        this.rawData += data;
       },
-      end() { },
+      end() {
+        let string = Buffer.from(this.rawData).toString().split('\r').join('').split('\n').join('');
+        console.log('wirtableDest.end()', string);
+        if (null != currentQueue.packingData) {
+          currentQueue.packingData.body = JSON.parse(string);
+          string = JSON.stringify(currentQueue.packingData)
+          currentQueue.packingData = null;
+        }
+        currentQueue.unsent.push(string);
+      },
     }
   },
   _syncInterval: 30,
@@ -86,16 +100,17 @@ const sessionManager = {
     }, milliseconds);
   },
   scansAllChannels() {
-    const unsentMsg = this.pop;
-    if (null == unsentMsg) { return }
+    const eventData = this.pop;
+    if (null == eventData) { return }
     this._clientChannels.forEach((clientChannel, offset) => {
       const req = clientChannel.req;
       const res = clientChannel.res;
       console.assert((res.connection.readable == res.connection.writable), 'Unexpected case!\n');
       if (!res.connection.readable) { return }
       console.log('clientChannel.req:', offset, req.url);
-      console.log('writing ' + unsentMsg);
-      res.write('data: ' + unsentMsg + '\n\n');
+
+      console.log('writing:', eventData);
+      res.write('data: ' + eventData + '\n\n');
       // res.write('event: ping\nid: 0\nretry: 10000\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
     });
   },
@@ -122,7 +137,17 @@ app.get('/[0-9A-Za-z]{16}', (req, res) => {
 });
 
 app.post('/[0-9A-Za-z]{16}', (req, res) => {
-  console.log('post():', req.headers, req.path);
+  console.log('post():', req.url);
+  const packingData = req.headers;
+  const addingKeys = ['body', 'query', 'timestamp'];
+  addingKeys.forEach((addingKey) => {
+    console.assert(!packingData.hasOwnProperty(addingKey), 'Unexpected case!\n');
+  });
+  packingData.body = {};
+  packingData.query = req.query;
+  packingData.timestamp = +(new Date());
+  // console.log('packingData:', packingData);
+  sessionManager.packingData = packingData;
   req.pipe(sessionManager.wirtableDest);
   req.pipe(res);
 });
