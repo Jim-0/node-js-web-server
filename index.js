@@ -78,7 +78,6 @@ const sessionManager = {
     return msgString;
   },
   loadDataFromRequest(req, shouldBePacked = true) {
-    console.log('loadDataFromRequest()', req.url);
     const currentQueue = this;
     const writableDest = {
       receivingBuffer: null,
@@ -118,6 +117,7 @@ const sessionManager = {
           string = JSON.stringify(packingData);
         }
         currentQueue.unsent.push(string);
+        currentQueue.scansAllChannels();
       },
     };
     // MARK: alternatives for Writable obj
@@ -148,14 +148,14 @@ const sessionManager = {
   scansAllChannels() {
     const eventData = this.pop;
     if (null == eventData) { return }
-    this._clientChannels.forEach((clientChannel, offset) => {
+    console.log('writingData:', eventData);
+    this._clientChannels.forEach(async (clientChannel, offset) => {
       const req = clientChannel.req;
       const res = clientChannel.res;
       console.assert((res.connection.readable == res.connection.writable), 'Unexpected case!\n');
       if (!res.connection.readable) { return }
-      console.log('clientChannel.req:', offset, req.url);
+      console.log('written active client req:', offset, req.url);
 
-      console.log('writing:', eventData);
       res.write('data: ' + eventData + '\n\n');
       // res.write('event: ping\nid: 0\nretry: 10000\ndata: ' + `{"now": "${(new Date()).toISOString()}"}` + '\n\n');
     });
@@ -168,10 +168,10 @@ const sessionManager = {
 sessionManager.run();
 
 app.get('/[0-9A-Za-z]{16}', corsModule(corsOptions), (req, res) => {
-  console.log('get():', req.headers, req.url);
+  console.log('get():', req.url);
   switch (req.headers.accept) {
     case 'text/event-stream':
-      console.log('event-stream');
+      console.log('event-stream', req.headers);
       res.setHeader("Content-Type", "text/event-stream");
       sessionManager.addChannel(req, res)
       break;
