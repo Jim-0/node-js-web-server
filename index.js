@@ -1,15 +1,30 @@
 
-const expressModule = require('express')
-const app = expressModule()
+const expressModule = require('express');
+const corsModule = require('cors');
+const corsOptions = {
+  origin: '*',
+  // origin: function (origin, callback) {
+  //   const whitelist = ['http://localhost:3000'];
+  //   if (whitelist.includes(origin)) {
+  //     callback(null, true)
+  //   } else {
+  //     callback(new Error('Not allowed by CORS'))
+  //   }
+  // },
+  optionsSuccessStatus: 200
+};
+
+const app = expressModule();
+// app.use(corsModule());
 
 const httpsModule = require('https');
 const httpsProxyAgentModule = require('https-proxy-agent');
 
 const fsModule = require('fs');
-const PORT = process.env.PORT || 3000
-const HTTPS_PROXY = process.env.HTTPS_PROXY
-const GET_SECRET = process.env.GET_SECRET || 'url'
-const getPrefixPath = `/get?q=${GET_SECRET}:`
+const PORT = process.env.PORT || 8080;
+const HTTPS_PROXY = process.env.HTTPS_PROXY;
+const GET_SECRET = process.env.GET_SECRET || 'url';
+const getPrefixPath = `/get?q=${GET_SECRET}:`;
 
 function getResource(onURL, callBack) {
   // TODO: get resouce by `HTTP`
@@ -63,6 +78,7 @@ const sessionManager = {
     return msgString;
   },
   loadDataFromRequest(req, shouldBePacked = true) {
+    console.log('loadDataFromRequest()', req.url);
     const currentQueue = this;
     const writableDest = {
       receivingBuffer: null,
@@ -78,6 +94,11 @@ const sessionManager = {
         this.receivingBuffer += data;
       },
       end() {
+        console.log('writableDest.end()');
+        if (null == this.receivingBuffer) {
+          // the lenght of posted data is `0`;
+          this.receivingBuffer = '';
+        }
         let string = Buffer.from(this.receivingBuffer).toString().split('\r').join('').split('\n').join('');
         console.log('writableDest.end()', string);
         // TODO: implement whitelist or blacklist
@@ -89,12 +110,29 @@ const sessionManager = {
           });
           packingData.query = req.query;
           packingData.timestamp = +(new Date());
-          packingData.body = JSON.parse(string);
+          try {
+            packingData.body = JSON.parse(string);
+          } catch {
+            packingData.body = {};
+          }
           string = JSON.stringify(packingData);
         }
         currentQueue.unsent.push(string);
       },
     };
+    // MARK: alternatives for Writable obj
+    // let rawData = '';
+    // req.on('data', (chunk) => { rawData += chunk; });
+    // req.on('end', () => {
+    //   try {
+    //     const parsedData = rawData;
+    //     console.log(parsedData);
+    //     writableDest.receivingBuffer = '{}';
+    //     writableDest.end();
+    //   } catch (e) {
+    //     console.error(e.message);
+    //   }
+    // });
     req.pipe(writableDest);
   },
   _syncInterval: 30,
@@ -129,7 +167,7 @@ const sessionManager = {
 
 sessionManager.run();
 
-app.get('/[0-9A-Za-z]{16}', (req, res) => {
+app.get('/[0-9A-Za-z]{16}', corsModule(corsOptions), (req, res) => {
   console.log('get():', req.headers, req.url);
   switch (req.headers.accept) {
     case 'text/event-stream':
@@ -139,12 +177,13 @@ app.get('/[0-9A-Za-z]{16}', (req, res) => {
       break;
     default:
       console.log('req.headers.accept:', req.headers.accept);
-      res.send(fsModule.readFileSync('./smee.io/webhooks.html', { encoding: 'utf8' }));
-      res.send(rootPage);
+      const webhooksPage = fsModule.readFileSync('./smee.io/webhooks.html', { encoding: 'utf8' });
+      res.send(webhooksPage);
   }
 });
 
-app.post('/[0-9A-Za-z]{16}', (req, res) => {
+app.options('/[0-9A-Za-z]{16}', corsModule(corsOptions));
+app.post('/[0-9A-Za-z]{16}', corsModule(corsOptions), (req, res, next) => {
   console.log('post():', req.url);
   sessionManager.loadDataFromRequest(req);
   res.end();
