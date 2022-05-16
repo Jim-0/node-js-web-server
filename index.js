@@ -176,6 +176,8 @@ app.get('/[0-9A-Za-z]{16}', corsModule(corsOptions), (req, res) => {
       sessionManager.addChannel(req, res)
       break;
     default:
+      // res.setHeader("X-Frame-Options", "sameorigin");
+      res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
       console.log('req.headers.accept:', req.headers.accept);
       const webhooksPage = fsModule.readFileSync('./smee.io/webhooks.html', { encoding: 'utf8' });
       res.send(webhooksPage);
