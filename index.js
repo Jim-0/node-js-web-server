@@ -71,9 +71,9 @@ const fetchFunction = () => {
     const rep = await fetchPromise;
     const repObj = await rep.json();
     console.log('text;', repObj.text);
-    target.focus();
-    target.select();
     if (typeof (repObj.text) == 'string') {
+      target.focus();
+      target.select();
       document.execCommand('insertText', false, repObj.text);
     } else {
       alert('fail')
@@ -94,12 +94,13 @@ app.post('/js/uglify', (req, res) => {
     console.log('codeOperation:', codeOperation);
     const codeOperations = {
       uglify(jsCode) {
+        const pretreatment = jsCode
         // refer: https://github.com/mishoo/UglifyJS
-        const minifiedResult = uglifyjsModule.minify(jsCode, { toplevel: true });
-        return minifiedResult;
+        const minifiedResult = uglifyjsModule.minify(pretreatment, { toplevel: false });
+        return minifiedResult.code;
       },
     };
-    const resText = codeOperations[codeOperation](jsCode).code;
+    const resText = codeOperations[codeOperation](jsCode);
     console.log('resText:', resText);
 
     res.setHeader("content-type", "application/json");
