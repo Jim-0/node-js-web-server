@@ -61,6 +61,53 @@ pagesMap.forEach(function (value, offset) {
   rootPage += `<div><a href="${value.remotePath}">${value.remotePath}</a></div>`
 });
 
+const fetchFunction = () => {
+  const target = this;
+  console.log('window.event', window.event);
+  if (!((window.event.ctrlKey) && (window.event.keyCode == 19))) { return; }
+  const reqBody = new URLSearchParams([['code', target.value], ['operate', 'uglify']]).toString();
+  const fetchPromise = fetch('', { 'body': reqBody, 'method': 'POST' });
+  (async function () {
+    const rep = await fetchPromise;
+    window.fff = fetchPromise;
+    window.rrr = rep;
+    const repObj = await rep.json();
+    console.log('text;', repObj.text);
+    target.focus();
+    target.select();
+    document.execCommand('insertText', false, repObj.text || 'error');
+  })();
+};
+const uglifyjsModule = require("uglify-js");
+app.get('/js/uglify', (req, res) => res.end(`<html><textarea style="resize: none; width: 100%; height: 100%;" onkeypress="(${fetchFunction.toString()})()"></textarea></html>`));
+app.post('/js/uglify', (req, res) => {
+  let rawData = '';
+  req.on('data', (chunk) => { rawData += chunk; });
+  req.on('end', () => {
+    const searchParams = new URL(`file:///?${rawData}`).searchParams;
+    // console.log('rawData:', rawData);
+    const jsCode = searchParams.get('code') || 'function add(first, second) { return first + second; }';
+    const codeOperation = searchParams.get('operate') || 'uglify';
+    console.log('jsCode:', jsCode);
+    console.log('codeOperation:', codeOperation);
+    const codeOperations = {
+      uglify(jsCode) {
+        // refer: https://github.com/mishoo/UglifyJS
+        const minifiedResult = uglifyjsModule.minify(jsCode);
+        return minifiedResult;
+      },
+    };
+    const resText = codeOperations[codeOperation](jsCode).code;
+    console.log('resText:', resText);
+
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ message: '', status: true, text: resText }));
+  }).on('error', (error) => {
+    console.log('error:', error);
+    res.end(error);
+  });
+});
+
 app.get('/', (req, res) => res.send(rootPage));
 // app.get('/', (req, res) => res.redirect('./text'));
 
