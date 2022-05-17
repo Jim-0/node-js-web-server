@@ -69,13 +69,15 @@ const fetchFunction = () => {
   const fetchPromise = fetch('', { 'body': reqBody, 'method': 'POST' });
   (async function () {
     const rep = await fetchPromise;
-    window.fff = fetchPromise;
-    window.rrr = rep;
     const repObj = await rep.json();
     console.log('text;', repObj.text);
     target.focus();
     target.select();
-    document.execCommand('insertText', false, repObj.text || 'error');
+    if (typeof (repObj.text) == 'string') {
+      document.execCommand('insertText', false, repObj.text);
+    } else {
+      alert('fail')
+    }
   })();
 };
 const uglifyjsModule = require("uglify-js");
@@ -86,14 +88,14 @@ app.post('/js/uglify', (req, res) => {
   req.on('end', () => {
     const searchParams = new URL(`file:///?${rawData}`).searchParams;
     // console.log('rawData:', rawData);
-    const jsCode = searchParams.get('code') || 'function add(first, second) { return first + second; }';
+    const jsCode = searchParams.get('code');
     const codeOperation = searchParams.get('operate') || 'uglify';
     console.log('jsCode:', jsCode);
     console.log('codeOperation:', codeOperation);
     const codeOperations = {
       uglify(jsCode) {
         // refer: https://github.com/mishoo/UglifyJS
-        const minifiedResult = uglifyjsModule.minify(jsCode);
+        const minifiedResult = uglifyjsModule.minify(jsCode, { toplevel: true });
         return minifiedResult;
       },
     };
