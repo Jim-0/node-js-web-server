@@ -17,7 +17,9 @@ const corsOptions = {
 const app = expressModule();
 // app.use(corsModule());
 
+const httpModule = require('http');
 const httpsModule = require('https');
+const httpProxyAgentModule = require('http-proxy-agent');
 const httpsProxyAgentModule = require('https-proxy-agent');
 
 const fsModule = require('fs');
@@ -26,23 +28,47 @@ const HTTPS_PROXY = process.env.HTTPS_PROXY;
 const GET_SECRET = process.env.GET_SECRET || 'url';
 const getPrefixPath = `/get?q=${GET_SECRET}:`;
 
-function getResource(onURL, callBack) {
-  // TODO: get resouce by `HTTP`
-  let options = {}
+async function fetch(url = 'https://httpbin.org/anything', options = { headers: {}, method: 'GET', body: '' }, callback = () => { }) {
+  let [http, httpProxyAgent] = [httpModule, httpProxyAgentModule];
+  if (url.startsWith('https://')) {
+    [http, httpProxyAgent] = [httpsModule, httpsProxyAgentModule];
+  };
+  // options.rejectUnauthorized = false;
   if (null != HTTPS_PROXY) {
-    console.log('HTTPS_PROXY:', HTTPS_PROXY)
-    let agent = new httpsProxyAgentModule(HTTPS_PROXY);
+    console.log('HTTPS_PROXY:', HTTPS_PROXY);
+    let agent = new httpProxyAgent(HTTPS_PROXY);
     options.agent = agent;
-  }
-  httpsModule.get(onURL, options, (res) => { callBack(res) });
-}
+  };
+  return new Promise(function (resolve, reject) {
+    const postData = options.body || '';
+    console.assert(typeof postData === 'string', "Unexpected case!\n");
+    console.log('postData:', JSON.stringify([postData]).slice(1, -1));
+    delete options.body;
+    const req = http.request(url, options, (res) => {
+      callback(res);
+      const { statusCode } = res;
+      if (![200, 201, 202, 300, 301, 302].includes(statusCode)) {
+        const error = new Error('Request Failed.\n' + `Status Code: ${statusCode}`);
+        reject(error);
+        // Consume response data to free up memory
+        res.resume();
+        return;
+      };
+      res.setEncoding('utf8');
+      let rawData = '';
+      res.on('data', (chunk) => { rawData += chunk });
+      res.on('end', () => { resolve(rawData) });
+    });
+    req.write(postData);
+    req.end();
+  });
+};
 
 // ???: Is it possible to result in a dead cycle?
 app.get('/get', (req, res) => {
-  // TODO: deliver request header
   if (!req.url.startsWith(getPrefixPath)) { return }
   let trustedURL = req.url.substring(getPrefixPath.length)
-  getResource(trustedURL, (response) => { response.pipe(res) })
+  fetch(trustedURL, { method: 'GET' }, (response) => { response.pipe(res) });
 });
 
 let pagesMap = [
